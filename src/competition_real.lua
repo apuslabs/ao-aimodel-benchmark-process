@@ -5,17 +5,25 @@ Llama = require("@sam/Llama-Herder")
 
 DB = DB or nil
 CompetitonPools = CompetitonPools or {}
-TokenProcessId = ""
-RAG_PROCESS_ID = "hMEUOgWi97d9rGT-lHNCbm937bTypMq7qxMWeaUnMLo"
+TokenProcessId = "lpJ5Edz_8DbNnVDL0XdbsY9vCOs45NACzfI4jvo4Ba8"
+EmbeddingProcessId = "hMEUOgWi97d9rGT-lHNCbm937bTypMq7qxMWeaUnMLo"
 Phi3Template = [[<|system|>
                 %s<|end|>
                 <|user|>
                 %s<|end|>]]
 
-SasSystemPrompt = [[You are a helpful assistant that can compute the SAS(semantic answer similarity) metrics.
+SasSystemPrompt = [[You are a helpful assistant that can compute the SAS(semantic answer similarity) score.
                     You can compute a score between 0~100 based on the SAS, 0 means totally different, 100 means almost the same.
-                    Now the user will send you two sentences(sentenceA and sentenceB), please return the SAS score of them.
-                    **Important**You must return as this format: {<the-sas-score>}.]]
+                    Now the user will send you:
+                    1. one Question
+                    2. the Context for the question
+                    3. an ExpectedResponse
+                    pls:
+                    1. generate a Response for the Question based on the provided Context.
+                    2. compute the SAS score between the provided ExpectedResponse with the Response generated.
+                    **Important**You must return as this format: {<the-sas-score>}]]
+PRIZE_BALANCE = PRIZE_BALANCE or 0
+CompetitonPoolId = 1001
 
 Handlers.add(
   "Init",
@@ -62,35 +70,37 @@ Handlers.add(
 
 local SQL = {
   INSERT_DATASET = [[
-      INSERT INTO datasets(question, expected_response) VALUES ("%s", "%s");
+      INSERT INTO datasets(question, expected_response) VALUES ('%s', '%s');
     ]],
   INSERT_PARTICIPANTS = [[
       INSERT INTO participants (author, upload_dataset_name, participant_dataset_hash) VALUES('%s', '%s', '%s');
     ]],
   INSERT_EVALUATIONS = [[
-      INSERT INTO evaluations (participant_id, participant_dataset_hash, dataset_id, question, correct_answer);
+      INSERT INTO evaluations (participant_id, participant_dataset_hash, dataset_id, question, correct_answer) VALUES('%s', '%s', '%s','%s', '%s');
     ]],
   ADD_REWARDED_TOKENS = [[
-      UPDATE participants SET rewarded_tokens = rewarded_tokens + '%s'
+      UPDATE participants SET rewarded_tokens = rewarded_tokens + '%d'
     ]],
-  -- GET_DATASET_ID = [[SELECT id FROM datasets WHERE author = '%s' AND participant_dataset_hash = '%s']],
   FIND_ALL_DATASET = [[
       SELECT id, question, expected_response FROM datasets;
     ]],
   FIND_USER_REWARDED_TOKENS = [[
-      SELECT rewarded_tokens as rewardedTokens from participants WHERE author = '%s'
+      SELECT rewarded_tokens as rewardedTokens from participants WHERE author = '%s';
     ]],
   GET_UNEVALUATED_EVALUATIONS = [[
       SELECT * FROM evaluations WHERE inference_start_time IS NULL LIMIT %d;
     ]],
   START_EVALUATION = [[
-      UPDATE evaluations SET inference_start_time = CURRENT_TIMESTAMP, inference_reference = '%s' WHERE id = '%s';
+      UPDATE evaluations SET inference_start_time = CURRENT_TIMESTAMP, inference_reference = '%d' WHERE id = '%d';
     ]],
   END_EVALUATION = [[
     UPDATE evaluations SET inference_end_time = CURRENT_TIMESTAMP, prediction = '%s' WHERE inference_reference = '%s';
     ]],
+  GET_EVALUATION_BY_REFERENCE = [[
+      SELECT * FROM evaluations WHERE inference_reference = '%s';
+    ]],
   UPDATE_SCORE = [[
-    UPDATE evaluations SET prediction_sas_score = '%s' WHERE inference_reference = '%s';
+      UPDATE evaluations SET prediction_sas_score = '%s' WHERE inference_reference = '%s';
     ]],
   TOTAL_SCORES_BY_PARTICIPANT = [[
       SELECT participant_id as author, SUM(prediction_sas_score) as score, COUNT(*) as count
@@ -178,6 +188,7 @@ ORDER BY
 ]]
 }
 
+SearchPromptReference = 0
 Handlers.add(
   "Evaluate",
   Handlers.utils.hasMatchingTag("Action", "Evaluate"),
@@ -185,41 +196,59 @@ Handlers.add(
     local limit = tonumber(msg.Data) or 2
     for row in DB:nrows(string.format(SQL.GET_UNEVALUATED_EVALUATIONS, limit)) do
       local ragData = string.format('{"dataset_hash": "%s","prompt":"%s"}', row.participant_dataset_hash, row.question)
+      SearchPromptReference = SearchPromptReference + 1
       ao.Send({
-        Target = RAG_PROCESS_ID,
-        Action = "Search-Prompt",
-        Data = ragData
+        Target = EmbeddingProcessId,
+        Data = ragData,
+        Tags = {
+          { name = "Action",    value = "Search-Prompt" },
+          { name = "Reference", value = SearchPromptReference }
+        },
       })
-
-      local reference = Llama.Reference
-      print("Inference: " .. row.prompt .. "\n")
-      Llama.run(row.prompt, 1, function(answer)
-        print("Answer: " .. answer .. "\n")
-        DB:exec(string.format(
-          SQL.END_EVALUATION,
-          answer, reference
-        ))
-        local expectedResponse = row.correct_answer
-        local sentences = " sentenceA: " .. answer .. ", sentenceB:" .. expectedResponse .. "."
-        local prompt = string.format(Phi3Template, SasSystemPrompt, sentences)
-        Llama.run(prompt, 1, function(sasScore)
-          print("Sas score:" .. sasScore .. "\n")
-          DB:exec(SQL.UPDATE_SCORE, extractSasScore(sasScore), reference)
-        end)
-      end)
       DB:exec(string.format(
         SQL.START_EVALUATION,
-        reference, row.id
+        SearchPromptReference, row.id
       ))
     end
   end
 )
 
 Handlers.add(
-  "Load-Data",
-  Handlers.utils.hasMatchingTag("Action", "Load-QA-Data"),
+  "Search-Prompt-Response",
+  Handlers.utils.hasMatchingTag("Action", "Search-Prompt-Response"),
   function(msg)
-    -- Handlers.utils.reply("start Load-Data!!!!!!")(msg)
+    local evaluationReference = msg.Tags.Reference
+    for row in DB:nrows(string.format(SQL.GET_EVALUATION_BY_REFERENCE, evaluationReference)) do
+      local data = json.decode(msg.Data)
+
+      local sentences = " Question: " ..
+      row.question .. ", Context: " .. data.prompt .. ", ExpectedResponse: " .. row.correct_answer
+      local prompt = string.format(Phi3Template, SasSystemPrompt, sentences)
+      Llama.run(prompt, 3, function(sasScore)
+        print("Sas score:" .. sasScore .. "\n")
+        DB:exec(SQL.UPDATE_SCORE, extractSasScore(sasScore), evaluationReference)
+      end)
+      -- end)
+    end
+  end
+)
+
+Handlers.add(
+  "Balance-Response",
+  function(msg)
+    return msg.Tags.from == TokenProcessId and
+        msg.Tags.Account == ao.id and msg.Tags.Balance ~= nil
+  end,
+  function(msg)
+    print("Updated Balance:" .. msg.Tags.Balance)
+    PRIZE_BALANCE = msg.Tags.Balance
+  end
+)
+
+Handlers.add(
+  "Load-Data",
+  Handlers.utils.hasMatchingTag("Action", "Load-Data"),
+  function(msg)
     local data = msg.Data
     assert(data ~= nil, "Data is nil")
     local DataSets = json.decode(data)
@@ -240,7 +269,7 @@ Handlers.add(
   "Create-Pool",
   function(msg)
     return msg.Tags.Action == "Credit-Notice" and
-        msg.From == ApusTokenProcess
+        msg.From == TokenProcessId
   end,
   function(msg)
     -- TODO
@@ -249,7 +278,7 @@ Handlers.add(
     local prizePool = msg.Tags["X-Prize-Pool"]
     local metaData = msg.Tags["X-MetaData"]
 
-    CompetitonPools[1001] = {
+    CompetitonPools[CompetitonPoolId] = {
       title = title,
       description = description,
       prizePool = prizePool,
@@ -267,21 +296,14 @@ Handlers.add(
   end
 )
 
-local function addParticipants(author, datasetName, datasetHash)
-  DB:exec(string.format(
-    SQL.INSERT_PARTICIPANTS,
-    author,
-    datasetName,
-    datasetHash
-  ))
-end
-
 local function initBenchmarkRecords(participantId, participantDatasetHash)
   for row in DB:nrows(string.format(SQL.FIND_ALL_DATASET)) do
     DB:exec(string.format(SQL.INSERT_EVALUATIONS,
       participantId, participantDatasetHash, row.id, row.question, row.expected_response))
   end
 end
+
+
 Handlers.add(
   "Join-Pool",
   Handlers.utils.hasMatchingTag("Action", "Join-Pool"),
@@ -291,7 +313,12 @@ Handlers.add(
     local datasetHash = data.dataset_hash
     local datasetName = data.dataset_name
 
-    addParticipants(author, datasetHash, datasetName)
+    DB:exec(string.format(
+      SQL.INSERT_PARTICIPANTS,
+      author,
+      datasetName,
+      datasetHash
+    ))
     initBenchmarkRecords(author, datasetHash)
 
     ao.send({
@@ -305,18 +332,25 @@ Handlers.add(
   end
 )
 
+
+function UpdateBalance()
+  ao.Send({
+    Target = TokenProcessId,
+    Tags = {
+      { name = "Action", value = "Balance" }
+    }
+  })
+end
+
 Handlers.add(
   "Get-Pool",
   Handlers.utils.hasMatchingTag("Action", "Get-Pool"),
   function(msg)
-    -- TODO
-
-    local id = 1001
-    local pool = CompetitonPools[id]
+    local pool = CompetitonPools[CompetitonPoolId]
     ao.send({
       Target = msg.From,
       Tags = {
-        { name = "Action", value = "Create-Pool-Response" },
+        { name = "Action", value = "Get-Pool-Response" },
         { name = "status", value = "200" }
       },
       Data = json.encode({
@@ -330,21 +364,19 @@ Handlers.add(
 )
 
 local reward = { 35, 20, 10, 5, 5, 5, 5, 5, 5, 5 }
-
 local function computeReward(rank)
-  local prizaTotal = 100000
   if rank <= 10 then
-    return reward[rank] * prizaTotal / 100
+    return reward[rank] * PRIZE_BALANCE / 100
   else
     return 300
   end
 end
 
-local function adjustUserRewarded(author, amount)
-  for rewaredTokens in DB:nrows(string.format(SQL.FIND_USER_REWARDED_TOKENS, author)) do
-    return amount - rewaredTokens
+local function computeNeedRewarded(author, amount)
+  for rewardTokens in DB:nrows(string.format(SQL.FIND_USER_REWARDED_TOKENS, author)) do
+    return amount - rewardTokens
   end
-  return 0
+  return amount
 end
 
 Handlers.add(
@@ -355,8 +387,11 @@ Handlers.add(
     for item in DB:nrows(SQL.TOTAL_SCORES_BY_PARTICIPANT) do
       rank = rank + 1
       local amount = computeReward(rank)
-      amount = adjustUserRewarded(item.participant_id)
-      if amount >= 0 then
+      amount = computeNeedRewarded(item.participant_id)
+      if PRIZE_BALANCE < amount then
+        print("Balance is not enough, balance: " .. PRIZE_BALANCE .. " want: " .. amount)
+      elseif amount > 0 then
+        PRIZE_BALANCE = PRIZE_BALANCE - amount
         transfer(item.participant_id, amount)
         DB:exec(SQL.ADD_REWARDED_TOKENS, amount)
       end
@@ -369,6 +404,7 @@ Handlers.add(
         { name = "status", value = "200" }
       }
     })
+
     print("OK")
   end
 )

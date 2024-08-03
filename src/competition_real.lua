@@ -222,7 +222,7 @@ Handlers.add(
       local data = json.decode(msg.Data)
 
       local sentences = " Question: " ..
-      row.question .. ", Context: " .. data.prompt .. ", ExpectedResponse: " .. row.correct_answer
+          row.question .. ", Context: " .. data.prompt .. ", ExpectedResponse: " .. row.correct_answer
       local prompt = string.format(Phi3Template, SasSystemPrompt, sentences)
       Llama.run(prompt, 3, function(sasScore)
         print("Sas score:" .. sasScore .. "\n")
@@ -424,7 +424,6 @@ Handlers.add(
   "Get-Dashboard",
   Handlers.utils.hasMatchingTag("Action", "Get-Dashboard"),
   function(msg)
-    -- TODO @Json
     local tempParticipants = 0
     local tempRewardedTokens = 0
     local tempRank = 0
@@ -467,7 +466,7 @@ Handlers.add(
   function(msg)
     local data = {}
     local query = SQL.TOTAL_PARTICIPANTS_RANK
-    for row in db:nrows(query) do
+    for row in DB:nrows(query) do
       table.insert(data, {
         rank = row.rank,
         dataset_id = row.dataset_id,
@@ -508,5 +507,115 @@ Handlers.add(
       Data = json.encode(data)
     })
     print("OK")
+  end
+)
+
+Handlers.add(
+  "DEBUG-DB",
+  Handlers.utils.hasMatchingTag("Action", "DEBUG-DB"),
+  function(msg)
+    DB:exec [[
+    INSERT INTO participants (author, upload_dataset_name, participant_dataset_hash, rewarded_tokens) VALUES
+    ('Author 1', 'Dataset 1', 'hash1', 10),
+    ('Author 2', 'Dataset 2', 'hash2', 20),
+    ('Author 3', 'Dataset 3', 'hash3', 30),
+    ('KMoyxllkDQP_jdooMc2lrnjrsDNHWBvXkqMGyn317NI', 'Dataset 4', 'hash4', 40),
+    ('Author 5', 'Dataset 5', 'hash5', 50),
+    ('Author 6', 'Dataset 6', 'hash6', 60),
+    ('Author 7', 'Dataset 7', 'hash7', 70),
+    ('Author 8', 'Dataset 8', 'hash8', 80),
+    ('Author 9', 'Dataset 9', 'hash9', 90),
+    ('Author 10', 'Dataset 10', 'hash10', 100),
+    ('Author 11', 'Dataset 11', 'hash11', 110),
+    ('Author 12', 'Dataset 12', 'hash12', 120),
+    ('Author 13', 'Dataset 13', 'hash13', 130),
+    ('Author 14', 'Dataset 14', 'hash14', 140),
+    ('Author 15', 'Dataset 15', 'hash15', 150),
+    ('Author 16', 'Dataset 16', 'hash16', 160),
+    ('Author 17', 'Dataset 17', 'hash17', 170),
+    ('Author 18', 'Dataset 18', 'hash18', 180),
+    ('Author 19', 'Dataset 19', 'hash19', 190),
+    ('Author 20', 'Dataset 20', 'hash20', 200);
+]]
+
+    -- 插入 datasets 表的测试数据
+    DB:exec [[
+    INSERT INTO datasets (context, question, expected_response) VALUES
+    ('Context 1', 'Question 1', 'Response 1'),
+    ('Context 2', 'Question 2', 'Response 2'),
+    ('Context 3', 'Question 3', 'Response 3'),
+    ('Context 4', 'Question 4', 'Response 4'),
+    ('Context 5', 'Question 5', 'Response 5'),
+    ('Context 6', 'Question 6', 'Response 6'),
+    ('Context 7', 'Question 7', 'Response 7'),
+    ('Context 8', 'Question 8', 'Response 8'),
+    ('Context 9', 'Question 9', 'Response 9'),
+    ('Context 10', 'Question 10', 'Response 10'),
+    ('Context 11', 'Question 11', 'Response 11'),
+    ('Context 12', 'Question 12', 'Response 12'),
+    ('Context 13', 'Question 13', 'Response 13'),
+    ('Context 14', 'Question 14', 'Response 14'),
+    ('Context 15', 'Question 15', 'Response 15'),
+    ('Context 16', 'Question 16', 'Response 16'),
+    ('Context 17', 'Question 17', 'Response 17'),
+    ('Context 18', 'Question 18', 'Response 18'),
+    ('Context 19', 'Question 19', 'Response 19'),
+    ('Context 20', 'Question 20', 'Response 20');
+]]
+    -- 插入 evaluations 表的测试数据
+    DB:exec [[
+  INSERT INTO evaluations (participant_id, participant_dataset_hash, dataset_id, question, correct_answer, prediction, prediction_sas_score, inference_start_time, inference_end_time, inference_reference) VALUES
+  (1, 'hash1', 1, 'Question 1', 'Answer 1', 'Prediction 1', 10, '2023-01-01 10:00:00', '2023-01-01 10:05:00', 'Reference 1'),
+  (1, 'hash2', 2, 'Question 2', 'Answer 2', 'Prediction 2', 20, '2023-01-02 11:00:00', '2023-01-02 11:05:00', 'Reference 2'),
+  (1, 'hash3', 3, 'Question 3', 'Answer 3', 'Prediction 3', 30, '2023-01-03 12:00:00', '2023-01-03 12:05:00', 'Reference 3'),
+  (1, 'hash4', 4, 'Question 4', 'Answer 4', 'Prediction 4', 40, '2023-01-04 13:00:00', '2023-01-04 13:05:00', 'Reference 4'),
+  (4, 'hash5', 5, 'Question 5', 'Answer 5', 'Prediction 5', 50, '2023-01-05 14:00:00', '2023-01-05 14:05:00', 'Reference 5'),
+  (4, 'hash6', 6, 'Question 6', 'Answer 6', 'Prediction 6', 60, '2023-01-06 15:00:00', '2023-01-06 15:05:00', 'Reference 6'),
+  (4, 'hash7', 7, 'Question 7', 'Answer 7', 'Prediction 7', 70, '2023-01-07 16:00:00', '2023-01-07 16:05:00', 'Reference 7'),
+  (4, 'hash8', 8, 'Question 8', 'Answer 8', 'Prediction 8', 80, '2023-01-08 17:00:00', '2023-01-08 17:05:00', 'Reference 8'),
+  (9, 'hash9', 9, 'Question 9', 'Answer 9', 'Prediction 9', 90, '2023-01-09 18:00:00', '2023-01-09 18:05:00', 'Reference 9'),
+  (10, 'hash10', 10, 'Question 10', 'Answer 10', 'Prediction 10', 100, '2023-01-10 19:00:00', '2023-01-10 19:05:00', 'Reference 10'),
+  (11, 'hash11', 11, 'Question 11', 'Answer 11', 'Prediction 11', 110, '2023-01-11 20:00:00', '2023-01-11 20:05:00', 'Reference 11'),
+  (12, 'hash12', 12, 'Question 12', 'Answer 12', 'Prediction 12', 120, '2023-01-12 21:00:00', '2023-01-12 21:05:00', 'Reference 12'),
+  (13, 'hash13', 13, 'Question 13', 'Answer 13', 'Prediction 13', 130, '2023-01-13 22:00:00', '2023-01-13 22:05:00', 'Reference 13'),
+  (14, 'hash14', 14, 'Question 14', 'Answer 14', 'Prediction 14', 140, '2023-01-14 23:00:00', '2023-01-14 23:05:00', 'Reference 14'),
+  (15, 'hash15', 15, 'Question 15', 'Answer 15', 'Prediction 15', 150, '2023-01-15 00:00:00', '2023-01-15 00:05:00', 'Reference 15'),
+    (16, 'hash16', 16, 'Question 16', 'Answer 16', 'Prediction 16', 160, '2023-01-16 01:00:00', '2023-01-16 01:05:00', 'Reference 16'),
+    (17, 'hash17', 17, 'Question 17', 'Answer 17', 'Prediction 17', 170, '2023-01-17 02:00:00', '2023-01-17 02:05:00', 'Reference 17'),
+    (18, 'hash18', 18, 'Question 18', 'Answer 18', 'Prediction 18', 180, '2023-01-18 03:00:00', '2023-01-18 03:05:00', 'Reference 18'),
+    (19, 'hash19', 19, 'Question 19', 'Answer 19', 'Prediction 19', 190, '2023-01-19 04:00:00', '2023-01-19 04:05:00', 'Reference 19'),
+    (20, 'hash20', 20, 'Question 20', 'Answer 20', 'Prediction 20', 200, '2023-01-20 05:00:00', '2023-01-20 05:05:00', 'Reference 20');
+]]
+    print("Data insertion complete")
+
+    print("start debug DB")
+
+    for row in DB:nrows("select count(*) as cnt from participants;") do
+      print("participants Row number" .. Dump(row))
+    end
+
+    for row in DB:nrows("select * from participants;") do
+      print("participants" .. Dump(row))
+    end
+
+
+    for row in DB:nrows("select count(*) as cnt from datasets;") do
+      print("datasets Row number" .. Dump(row))
+    end
+
+    for row in DB:nrows("select * from datasets;") do
+      print("datasets" .. Dump(row))
+    end
+
+
+    for row in DB:nrows("select count(*) as cnt from evaluations;") do
+      print("evaluations Row number" .. Dump(row))
+    end
+
+    for row in DB:nrows("select * from evaluations;") do
+      print("row start" .. Dump(row))
+      evaluations_cnt = evaluations_cnt + 1
+      -- evaluations[evaluations_cnt] = Dump(row)
+    end
   end
 )

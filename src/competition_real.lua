@@ -1,7 +1,7 @@
 local json = require("json")
 local ao = require('ao')
 local sqlite3 = require("lsqlite3")
-Llama = require("@sam/Llama-Herder")
+-- Llama = require("@sam/Llama-Herder")
 
 DB = DB or nil
 CompetitonPools = CompetitonPools or {}
@@ -428,21 +428,26 @@ Handlers.add(
     local tempRewardedTokens = 0
     local tempRank = 0
     local tempReward = 0
-    for row in DB:nrows(SQL.TOTAL_PARTICIPANT_REWARDED_TOKENSSELECT) do
+
+    print("Get-Dashboard begin")
+    for row in DB:nrows(SQL.TOTAL_PARTICIPANT_REWARDED_TOKENS) do
       tempParticipants = row.total_participants
       tempRewardedTokens = row.total_rewarded_tokens
-      print("Total Participants: " .. row.total_participants)
-      print("Total Rewarded Tokens: " .. row.total_rewarded_tokens)
     end
 
-    for row in DB:nrows(string.format(SQL.FIND_USER_REWARDED_TOKENS, msg.author)) do
-      tempReward = row.rewarded_tokens
+    local sender = msg.Tags["Sender"]
+    print("sender" .. Dump(sender))
+    for row in DB:nrows(string.format(SQL.FIND_USER_REWARDED_TOKENS, sender)) do
+      tempReward = row.rewardedTokens
+      print("tempReward" .. Dump(tempReward))
     end
 
-    for row in DB:nrows(string.format(SQL.FIND_USER_RANK, msg.author)) do
-      tempRank = row.tempRank
+    for row in DB:nrows(string.format(SQL.FIND_USER_RANK, sender)) do
+      tempRank = row.rank
+      print("temp Rank" .. Dump(tempRank))
     end
 
+    print("Get-Dashboard END")
     ao.send({
       Target = msg.From,
       Tags = {
@@ -478,26 +483,6 @@ Handlers.add(
       })
     end
 
-    -- local data = json.encode({
-    --   {
-    --     rank = 1,
-    --     dataset_id = 10,
-    --     dataset_name = "a good dataset",
-    --     dataset_upload_time = 1722254056,
-    --     score = 65,
-    --     author = "ewewrerr",
-    --     granted_reward = 0
-    --   },
-    --   {
-    --     rank = 2,
-    --     dataset_id = 12,
-    --     dataset_name = "a bad dataset",
-    --     dataset_upload_time = 1722254059,
-    --     score = 60,
-    --     author = "ewewrerreewdddd",
-    --     granted_reward = 0
-    --   }
-    -- });
     ao.send({
       Target = msg.From,
       Tags = {
@@ -514,54 +499,56 @@ Handlers.add(
   "DEBUG-DB",
   Handlers.utils.hasMatchingTag("Action", "DEBUG-DB"),
   function(msg)
+    print("Data insertion begin")
     DB:exec [[
-    INSERT INTO participants (author, upload_dataset_name, participant_dataset_hash, rewarded_tokens) VALUES
-    ('Author 1', 'Dataset 1', 'hash1', 10),
-    ('Author 2', 'Dataset 2', 'hash2', 20),
-    ('Author 3', 'Dataset 3', 'hash3', 30),
-    ('KMoyxllkDQP_jdooMc2lrnjrsDNHWBvXkqMGyn317NI', 'Dataset 4', 'hash4', 40),
-    ('Author 5', 'Dataset 5', 'hash5', 50),
-    ('Author 6', 'Dataset 6', 'hash6', 60),
-    ('Author 7', 'Dataset 7', 'hash7', 70),
-    ('Author 8', 'Dataset 8', 'hash8', 80),
-    ('Author 9', 'Dataset 9', 'hash9', 90),
-    ('Author 10', 'Dataset 10', 'hash10', 100),
-    ('Author 11', 'Dataset 11', 'hash11', 110),
-    ('Author 12', 'Dataset 12', 'hash12', 120),
-    ('Author 13', 'Dataset 13', 'hash13', 130),
-    ('Author 14', 'Dataset 14', 'hash14', 140),
-    ('Author 15', 'Dataset 15', 'hash15', 150),
-    ('Author 16', 'Dataset 16', 'hash16', 160),
-    ('Author 17', 'Dataset 17', 'hash17', 170),
-    ('Author 18', 'Dataset 18', 'hash18', 180),
-    ('Author 19', 'Dataset 19', 'hash19', 190),
-    ('Author 20', 'Dataset 20', 'hash20', 200);
+  INSERT INTO participants (author, upload_dataset_name, participant_dataset_hash, rewarded_tokens) VALUES
+  ('Author 1', 'Dataset 1', 'hash1', 10),
+  ('Author 2', 'Dataset 2', 'hash2', 20),
+  ('Author 3', 'Dataset 3', 'hash3', 30),
+  ('fcoN_xJeisVsPXA-trzVAuIiqO3ydLQxM-L4XbrQKzY', 'Dataset 4', 'hash4', 40),
+  ('Author 5', 'Dataset 5', 'hash5', 50),
+  ('Author 6', 'Dataset 6', 'hash6', 60),
+  ('Author 7', 'Dataset 7', 'hash7', 70),
+  ('Author 8', 'Dataset 8', 'hash8', 80),
+  ('Author 9', 'Dataset 9', 'hash9', 90),
+  ('Author 10', 'Dataset 10', 'hash10', 100),
+  ('Author 11', 'Dataset 11', 'hash11', 110),
+  ('Author 12', 'Dataset 12', 'hash12', 120),
+  ('Author 13', 'Dataset 13', 'hash13', 130),
+  ('Author 14', 'Dataset 14', 'hash14', 140),
+  ('Author 15', 'Dataset 15', 'hash15', 150),
+  ('Author 16', 'Dataset 16', 'hash16', 160),
+  ('Author 17', 'Dataset 17', 'hash17', 170),
+  ('Author 18', 'Dataset 18', 'hash18', 180),
+  ('Author 19', 'Dataset 19', 'hash19', 190),
+  ('Author 20', 'Dataset 20', 'hash20', 200);
 ]]
 
     -- 插入 datasets 表的测试数据
     DB:exec [[
-    INSERT INTO datasets (context, question, expected_response) VALUES
-    ('Context 1', 'Question 1', 'Response 1'),
-    ('Context 2', 'Question 2', 'Response 2'),
-    ('Context 3', 'Question 3', 'Response 3'),
-    ('Context 4', 'Question 4', 'Response 4'),
-    ('Context 5', 'Question 5', 'Response 5'),
-    ('Context 6', 'Question 6', 'Response 6'),
-    ('Context 7', 'Question 7', 'Response 7'),
-    ('Context 8', 'Question 8', 'Response 8'),
-    ('Context 9', 'Question 9', 'Response 9'),
-    ('Context 10', 'Question 10', 'Response 10'),
-    ('Context 11', 'Question 11', 'Response 11'),
-    ('Context 12', 'Question 12', 'Response 12'),
-    ('Context 13', 'Question 13', 'Response 13'),
-    ('Context 14', 'Question 14', 'Response 14'),
-    ('Context 15', 'Question 15', 'Response 15'),
-    ('Context 16', 'Question 16', 'Response 16'),
-    ('Context 17', 'Question 17', 'Response 17'),
-    ('Context 18', 'Question 18', 'Response 18'),
-    ('Context 19', 'Question 19', 'Response 19'),
-    ('Context 20', 'Question 20', 'Response 20');
+  INSERT INTO datasets (context, question, expected_response) VALUES
+  ('Context 1', 'Question 1', 'Response 1'),
+  ('Context 2', 'Question 2', 'Response 2'),
+  ('Context 3', 'Question 3', 'Response 3'),
+  ('Context 4', 'Question 4', 'Response 4'),
+  ('Context 5', 'Question 5', 'Response 5'),
+  ('Context 6', 'Question 6', 'Response 6'),
+  ('Context 7', 'Question 7', 'Response 7'),
+  ('Context 8', 'Question 8', 'Response 8'),
+  ('Context 9', 'Question 9', 'Response 9'),
+  ('Context 10', 'Question 10', 'Response 10'),
+  ('Context 11', 'Question 11', 'Response 11'),
+  ('Context 12', 'Question 12', 'Response 12'),
+  ('Context 13', 'Question 13', 'Response 13'),
+  ('Context 14', 'Question 14', 'Response 14'),
+  ('Context 15', 'Question 15', 'Response 15'),
+  ('Context 16', 'Question 16', 'Response 16'),
+  ('Context 17', 'Question 17', 'Response 17'),
+  ('Context 18', 'Question 18', 'Response 18'),
+  ('Context 19', 'Question 19', 'Response 19'),
+  ('Context 20', 'Question 20', 'Response 20');
 ]]
+
     -- 插入 evaluations 表的测试数据
     DB:exec [[
   INSERT INTO evaluations (participant_id, participant_dataset_hash, dataset_id, question, correct_answer, prediction, prediction_sas_score, inference_start_time, inference_end_time, inference_reference) VALUES
@@ -586,6 +573,8 @@ Handlers.add(
     (19, 'hash19', 19, 'Question 19', 'Answer 19', 'Prediction 19', 190, '2023-01-19 04:00:00', '2023-01-19 04:05:00', 'Reference 19'),
     (20, 'hash20', 20, 'Question 20', 'Answer 20', 'Prediction 20', 200, '2023-01-20 05:00:00', '2023-01-20 05:05:00', 'Reference 20');
 ]]
+
+
     print("Data insertion complete")
 
     print("start debug DB")
@@ -607,15 +596,8 @@ Handlers.add(
       print("datasets" .. Dump(row))
     end
 
-
     for row in DB:nrows("select count(*) as cnt from evaluations;") do
       print("evaluations Row number" .. Dump(row))
-    end
-
-    for row in DB:nrows("select * from evaluations;") do
-      print("row start" .. Dump(row))
-      evaluations_cnt = evaluations_cnt + 1
-      -- evaluations[evaluations_cnt] = Dump(row)
     end
   end
 )

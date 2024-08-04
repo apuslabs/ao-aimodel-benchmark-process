@@ -1,7 +1,7 @@
 local json = require("json")
 local ao = require('ao')
 local sqlite3 = require("lsqlite3")
--- Llama = require("@sam/Llama-Herder")
+Llama = require("@sam/Llama-Herder")
 
 DB = DB or nil
 CompetitonPools = CompetitonPools or {}

@@ -24,7 +24,7 @@
   },
   "scripts": {
     "prepare_wallets": "ts-node scripts/prepare_wallets.ts",
-    "test_prepare": "mocha --require ts-node/register --timeout 20000 tests/**/*.test.ts --grep 'Preparations' ",
+    "test_prepare": "mocha --require ts-node/register --timeout 40000 tests/**/*.test.ts --grep 'Preparations' ",
     "test": "mocha --require ts-node/register --timeout 40000 tests/**/*.test.ts --grep 'Preparations' --invert",
     "build": "tsc",
     "format": "prettier --write ."

@@ -1,4 +1,4 @@
-local json = require("json")
+Json = require("json")
 local sqlite3 = require("lsqlite3")
 SQL = require("module.sqls.sas_competition")
 Config = require("module.utils.config")
@@ -33,7 +33,7 @@ function Evaluate()
 end
 
 function LoadQuestion(dataStr)
-    SQL.BatchCreateQuestion(json.decode(dataStr))
+    SQL.BatchCreateQuestion(Json.decode(dataStr))
 end
 
 function JoinCompetitionHandler(msg)
@@ -43,7 +43,7 @@ end
 Handlers.add("Join-Competition", "Join-Competition", JoinCompetitionHandler)
 
 function GetRank()
-    return json.encode(SQL.GetRank())
+    return Json.encode(SQL.GetRank())
 end
 
 Handlers.add("Get-Rank", "Get-Rank", function(msg)

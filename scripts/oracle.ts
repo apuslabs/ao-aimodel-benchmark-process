@@ -19,6 +19,9 @@ async function getUnembeddedDocuments() {
 interface Dataset {
   dataset_hash: string;
   documents: { content: string }[];
+  pool_id: string;
+  dataset_name: string;
+  user: string;
 }
 
 function decodeMeta(meta: string) {
@@ -34,14 +37,19 @@ async function embedDocuments(d: Dataset) {
   const list = [
     {
       dataset_id: d.dataset_hash,
-      documents: d.documents.map((v) => ({ content: v })),
+      documents: d.documents,
+      pool_id: d.pool_id,
+      user: d.user,
+      dataset_name: d.dataset_name,
     },
   ];
   if (!list.length) {
     console.warn('No documents to embed', d.dataset_hash);
     return 0;
   }
-  const res = await axios.post('/create-dataset', { list });
+  const res = await axios.post('/create-dataset', {
+    list,
+  });
   return res.data?.count ?? 0;
 }
 

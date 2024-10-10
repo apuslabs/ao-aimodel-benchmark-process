@@ -14,6 +14,7 @@ from haystack.dataclasses import Document
 from haystack_integrations.document_stores.chroma import ChromaDocumentStore
 from haystack_integrations.components.retrievers.chroma import ChromaEmbeddingRetriever
 from cachetools import LRUCache, cached
+import os
 
 app = FastAPI()
 
@@ -50,6 +51,9 @@ class DocumentInput(BaseModel):
 class Dataset(BaseModel):
     dataset_id: str
     documents: List[DocumentInput]
+    user: str
+    pool_id: str
+    dataset_name: str
 
 class CreateDatasetInput(BaseModel):
     list: List[Dataset]
@@ -68,8 +72,15 @@ class RetrieveInput(BaseModel):
 @app.post("/create-dataset")
 async def create_dataset(input_data: CreateDatasetInput):
     try:
-        count = 0
         for dataset in input_data.list:
+            os.makedirs(f'datasets/{dataset.pool_id}', exist_ok=True)
+            record = {
+                "dataset_name": dataset.dataset_name,
+                "documents": [doc.dict() for doc in dataset.documents]  # 使用 .dict() 将 Pydantic 模型转换为字典
+            }
+            with open(f'datasets/{dataset.pool_id}/{dataset.user}.json', 'w', encoding='utf-8') as json_file:
+                json.dump(record, json_file, indent=4, ensure_ascii=False)
+            count = 0
             indexed_docs = [
                 Document(content=doc.content) for doc in dataset.documents
             ]

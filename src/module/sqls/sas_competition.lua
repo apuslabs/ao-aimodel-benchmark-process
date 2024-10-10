@@ -27,15 +27,23 @@ SQL.init = function(client)
     DB:exec(SQL.DATABASE)
 end
 
-SQL.BatchCreateQuestion = function(questions)
+SQL.BatchCreateQuestion = function(questions, options)
+    options = options or {}
+    if options.json_input == true then
+        questions = json.decode(questions)
+    end
     Helper.assert_non_empty_array(questions)
     local values = {}
     for _, question in ipairs(questions) do
         Helper.assert_non_empty(question.question, question.expected_response)
-        table.insert(values, {
+        local insert_obj = {
             question = question.question,
             expected_response = question.expected_response,
-        })
+        }
+        if options.contain_id == true then
+            insert_obj["id"] = question.id
+        end
+        table.insert(values, insert_obj)
     end
     return DB:batchInsert("questions", values)
 end
@@ -48,6 +56,7 @@ SQL.GetEvaluations = function(limit, offset)
     return json.encode(DB:query("evaluations", {}, {
         limit = limit,
         offset = offset,
+        order = "id"
     }))
 end
 
@@ -75,16 +84,25 @@ SQL.GetUnfinishedEvaluations = function()
     return json.encode(idarr)
 end
 
-SQL.BatchCreateEvaluation = function(evaluations)
+SQL.BatchCreateEvaluation = function(evaluations, options)
+    options = options or {}
+    if options.json_input == true then
+        evaluations = json.decode(evaluations)
+    end
+    print(evaluations, options)
     Helper.assert_non_empty_array(evaluations)
     local values = {}
     for _, evaluation in ipairs(evaluations) do
         Helper.assert_non_empty(evaluation.participant_dataset_hash, evaluation.question_id)
-        table.insert(values, {
+        local insert_obj = {
             participant_dataset_hash = evaluation.participant_dataset_hash,
             question_id = evaluation.question_id,
             created_at = datetime.unix(),
-        })
+        }
+        if options.contain_id == true then
+            insert_obj["id"] = evaluation.id
+        end
+        table.insert(values, insert_obj)
     end
     return DB:batchInsert("evaluations", values)
 end

@@ -1,4 +1,4 @@
-local json = require("json")
+Json = require("json")
 local ao = require(".ao")
 local sqlite3 = require("lsqlite3")
 SQL = require("module.sqls.pool")
@@ -15,7 +15,7 @@ CompetitionPools = CompetitionPools or {}
 local function getOngoingCompetitions()
     local pools = {}
     for id, pool in pairs(CompetitionPools) do
-        local metadata = json.decode(pool.metadata)
+        local metadata = Json.decode(pool.metadata)
         if not metadata.competition_time then
             Log.error("Competition time not found in metadata")
             return {}
@@ -32,22 +32,22 @@ end
 
 
 Handlers.add("Get-Competitions", "Get-Competitions", function (msg)
-    msg.reply({ Status = "200", Data = json.encode(Lodash.keys(CompetitionPools)) })
+    msg.reply({ Status = "200", Data = Json.encode(Lodash.keys(CompetitionPools)) })
 end)
 
 Handlers.add("Get-Competition", "Get-Competition", function (msg)
     local poolId = tonumber(msg.Data)
-    msg.reply({ Status = "200", Data = json.encode(CompetitionPools[poolId]) })
+    msg.reply({ Status = "200", Data = Json.encode(CompetitionPools[poolId]) })
 end)
 
 Handlers.add("Get-Participants", "Get-Datasets", function (msg)
     local poolId = tonumber(msg.Data)
-    msg.reply({ Status = "200", Data = json.encode(SQL.GetParticipants(poolId)) })
+    msg.reply({ Status = "200", Data = Json.encode(SQL.GetParticipants(poolId)) })
 end)
 
 Handlers.add("Get-Leaderboard", { Action = "Get-Leaderboard" }, function (msg)
     local poolId = tonumber(msg.Data)
-    msg.reply({ Status = "200", Data = json.encode(SQL.GetLeaderboard(poolId)) })
+    msg.reply({ Status = "200", Data = Json.encode(SQL.GetLeaderboard(poolId)) })
 end)
 
 Handlers.add("Get-Dashboard", "Get-Dashboard", function (msg)
@@ -61,7 +61,7 @@ Handlers.add("Get-Dashboard", "Get-Dashboard", function (msg)
     end
     msg.reply({
         Status = "200",
-        Data = json.encode({
+        Data = Json.encode({
             participants = SQL.GetTotalParticipants(poolID),
             granted_reward = SQL.GetTotalRewards(poolID),
             rank = rank,
@@ -120,7 +120,7 @@ end
 Handlers.add("Create-Pool", { Action = "Credit-Notice", From = Config.Process.Token }, CreatePoolHandler)
 
 local poolTimeCheck = function (poolID)
-    local metadata = json.decode(CompetitionPools[poolID].metadata)
+    local metadata = Json.decode(CompetitionPools[poolID].metadata)
     local startTime = metadata.competition_time["start"]
     local endTime = metadata.competition_time["end"]
     local now = Datetime.unix()
@@ -147,7 +147,7 @@ function JoinPoolHandler(msg)
         return
     end
 
-    local data = json.decode(msg.Data)
+    local data = Json.decode(msg.Data)
     SQL.CreateParticipant(poolID, msg.User, data.dataset_hash, data.dataset_name)
     msg.reply({ Status = "200", Data = "Join Success" })
     UploadedUserList[msg.User] = true
@@ -182,7 +182,7 @@ function GetRank(poolID)
         Target = CompetitionPools[poolID].process_id,
         Action = "Get-Rank"
     }).onReply(function(msg)
-        OnGetRank(poolID, json.decode(msg.Data))
+        OnGetRank(poolID, Json.decode(msg.Data))
     end)
 end
 
@@ -190,7 +190,7 @@ Handlers.add("Update-Rank", "Get-Rank-Response", function(msg)
     if not msg.From == Config.Process.Competition then
         return
     end
-    OnGetRank(1003, json.decode(msg.Data))
+    OnGetRank(1003, Json.decode(msg.Data))
 end)
 
 CircleTimes = CircleTimes or 0
@@ -228,7 +228,7 @@ Handlers.add("Participants-Statistic", "Participants-Statistic", function (msg)
     end
     msg.reply({
         Status = "200",
-        Data = json.encode({
+        Data = Json.encode({
             last_hour = lastHourParticipants,
             last_day = lastDayParticipants,
             total = totalParticipants
@@ -247,7 +247,7 @@ Handlers.add("Dataset-Statistic", "Dataset-Statistic", function (msg)
         })
     end
 
-    msg.reply({ Status = "200", Data = json.encode(res) })
+    msg.reply({ Status = "200", Data = Json.encode(res) })
 end)
 
 Handlers.add("Join-Pool", "Join-Pool", JoinPoolHandler)

@@ -1,9 +1,11 @@
-local json = require("json")
+Json = require("json")
 Log = require("module.utils.log")
 local Helper = require("module.utils.helper")
 Config = require("module.utils.config")
 local Datetime = require("module.utils.datetime")
 local Lodash = require("module.utils.lodash")
+ObjectUtils = require("module.utils.object")
+ArrayUtils = require("module.utils.array")
 
 local throttleCheck = Helper.throttleCheckWrapper(Config.Pool.JoinThrottle)
 
@@ -73,7 +75,7 @@ function CreateDatasetHandler(msg)
         msg.reply({ Status = "403", Data = "You have pending creation, please wait for it." })
         return
     end
-    local data = json.decode(msg.Data)
+    local data = Json.decode(msg.Data)
 
     if UploadedDatasetList[data.hash] then
         Log.warn(string.format("%s has been taken, uploaded by %s", data.hash, msg.From))
@@ -101,7 +103,7 @@ function CreateDatasetHandler(msg)
         Action = "Join-Pool",
         User = msg.From,
         PoolID = msg.PoolID,
-        Data = json.encode({ dataset_hash = data.hash, dataset_name = data.name })
+        Data = Json.encode({ dataset_hash = data.hash, dataset_name = data.name })
     }).onReply(function (replyMsg)
         Log.trace("Receive reply from the pool " .. replyMsg.From)
 
@@ -132,6 +134,9 @@ function CreateDatasetHandler(msg)
                         created_at = Datetime.unix(),
                         list = data.list,
                         embedding = false,
+                        pool_id = msg.PoolID,
+                        dataset_name = data.name,
+                        user = msg.From
                     }
                     Log.info(string.format("%s Create Dataset %s (%s)", msg.From, data.hash, #data.list))
                     if not UploadedUserList[msg.From] then
@@ -175,7 +180,7 @@ end
 
 function GetCreationStatus(msg)
     local user = msg.Data
-    msg.reply({ Status = "200", Data = json.encode(DatasetStatus[user]) })
+    msg.reply({ Status = "200", Data = Json.encode(DatasetStatus[user]) })
 end
 
 function CountUploadDatasetQueue()
@@ -190,9 +195,12 @@ function GetUnembededDocumentsHandler(msg)
     for hash, data in pairs(UploadDatasetQueue) do
         msg.reply({
             Status = "200",
-            Data = json.encode({
+            Data = Json.encode({
                 dataset_hash = hash,
-                documents = data.list
+                documents = data.list,
+                pool_id = data.pool_id,
+                dataset_name = data.dataset_name,
+                user = data.user
             })
         })
         return
@@ -217,7 +225,7 @@ end
 PromptQueue = PromptQueue or {}
 function SearchPromptHandler(msg)
     local PromptReference = msg["X-Reference"] or msg.Reference
-    local data = json.decode(msg.Data)
+    local data = Json.decode(msg.Data)
     Helper.assert_non_empty(data.dataset_hash, data.prompt)
     PromptQueue[PromptReference] = {
         reference = PromptReference,
@@ -237,11 +245,11 @@ function GetToRetrievePromptHandler(msg)
             break
         end
     end
-    msg.reply({ Status = "200", Data = json.encode(prompts) })
+    msg.reply({ Status = "200", Data = Json.encode(prompts) })
 end
 
 function RecevicePromptResponseHandler(msg)
-    local data = json.decode(msg.Data)
+    local data = Json.decode(msg.Data)
     for _, item in ipairs(data) do
         Helper.assert_non_empty(item.reference, item.retrieve_result)
         local now = Datetime.unix()
@@ -278,9 +286,81 @@ Handlers.add("Set-Retrieve-Result", "Set-Retrieve-Result", RecevicePromptRespons
 
 Handlers.add("Get-Creation-Status", "Get-Creation-Status", GetCreationStatus)
 
+function GetDatasetQueueByKeys(keys)
+    keys = Json.decode(keys)
+    local res = {}
+    for _, k in ipairs(keys) do
+        if UploadDatasetQueue[k] ~= nil then
+            local insert_obj = {}
+            insert_obj["created_at"] = UploadDatasetQueue[k].created_at
+            insert_obj["list"] = UploadDatasetQueue[k].list
+            insert_obj["embedding"] = UploadDatasetQueue[k].embedding
+            insert_obj["dataset_hash"] = k
+            table.insert(res, insert_obj)
+        end
+    end
+    return Json.encode(res)
+end
+
+function ImportWhiteList(data)
+    data = Json.decode(data)
+    for _, v in ipairs(data) do
+        table.insert(WhiteList, v)
+    end
+end
+
+function ImportDatasetStatus(data)
+    data = Json.decode(data)
+    for _, v in ipairs(data) do
+        DatasetStatus[v.dataset_hash] = {
+            create_pending = v.create_pending,
+            last_creation = v.last_creation
+        }
+    end
+end
+
+function ImportPromptQueue(data)
+    data = Json.decode(data)
+    for _, v in ipairs(data) do
+        PromptQueue[v.reference] = v
+    end
+end
+
+function ImportUploadDatasetQueue(data)
+    data = Json.decode(data)
+    for _, v in ipairs(data) do
+        UploadDatasetQueue[v.dataset_hash] = {
+            created_at = v.created_at,
+            list = v.list,
+            embedding = v.embedding,
+        }
+    end
+end
+
+function ImportUploadDatasetList(data)
+    data = Json.decode(data)
+    for _, v in ipairs(data) do
+        UploadedDatasetList[v] = true
+    end
+end
+
+function ImportUploadUserList(data)
+    data = Json.decode(data)
+    for _, v in ipairs(data) do
+        UploadedUserList[v] = true
+    end
+end
+
+function ImportWhitelist(data)
+    data = Json.decode(data)
+    for _, v in ipairs(data) do
+        Lodash.InsertUnique(WhiteList, v)
+    end
+end
 
 function DANGEROUS_CLEAR()
     UploadedUserList = {}
+    UploadedDatasetList = {}
     WhiteList = {}
     UploadDatasetQueue = {}
     DatasetStatus = {}

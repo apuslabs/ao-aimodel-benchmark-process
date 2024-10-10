@@ -59,6 +59,16 @@ SQL.GetParticipant = function(pool_id, dataset_hash)
     return DB:query("participants", { pool_id = pool_id, dataset_hash = dataset_hash })
 end
 
+SQL.GetTotalAllParticipants = function()
+    local result = DB:nrow(string.format(
+        "SELECT COUNT(dataset_hash) AS count FROM participants"))
+    return result.count
+end
+
+SQL.GetAllParticipantsByPage = function(offset, limit)
+    return DB:query("participants", {}, {offset=offset, limit=limit, order="dataset_hash, pool_id"})
+end
+
 SQL.GetParticipants = function(pool_id)
     return DB:query("participants", { pool_id = pool_id }, { fields = "dataset_hash, dataset_name" })
 end
